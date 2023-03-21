@@ -4,6 +4,7 @@
   "sideEffects": false,
   "type": "module",
   "scripts": {
+    "prepare": "patch-package",
     "build": "remix build",
     "dev": "remix dev",
     "start": "remix-serve build",
@@ -23,6 +24,7 @@
     "@types/react": "^18.0.25",
     "@types/react-dom": "^18.0.8",
     "eslint": "^8.27.0",
+    "patch-package": "^6.5.1",
     "typescript": "^4.8.4"
   },
   "engines": {

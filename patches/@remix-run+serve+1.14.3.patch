@@ -1,0 +1,83 @@
+diff --git a/node_modules/@remix-run/serve/dist/cli.js b/node_modules/@remix-run/serve/dist/cli.js
+index aec407b..7a703cf 100755
+--- a/node_modules/@remix-run/serve/dist/cli.js
++++ b/node_modules/@remix-run/serve/dist/cli.js
+@@ -12,6 +12,7 @@
+ 'use strict';
+ 
+ require('./env');
++var { pathToFileURL } = require('url');
+ var path = require('path');
+ var os = require('os');
+ var index = require('./index');
+@@ -39,9 +40,21 @@ let onListen = () => {
+     console.log(`Remix App Server started at http://localhost:${port} (http://${address}:${port})`);
+   }
+ };
+-let build = require(buildPath);
+-let app = index.createApp(buildPath, process.env.NODE_ENV, build.publicPath, build.assetsBuildDirectory);
+-let server = process.env.HOST ? app.listen(port, process.env.HOST, onListen) : app.listen(port, onListen);
+-["SIGTERM", "SIGINT"].forEach(signal => {
+-  process.once(signal, () => server === null || server === void 0 ? void 0 : server.close(console.error));
+-});
++
++(async () => {
++  let build;
++  let resolvedBuildPath = require.resolve(buildPath);
++  try {
++    let buildModule = await import(pathToFileURL(resolvedBuildPath).href);
++    build = buildModule?.default || buildModule;
++  } catch (error) {
++    throw new Error(
++      `Error loading build at ${buildPath}\n${String(error)}`
++    );
++  }
++  let app = index.createApp(resolvedBuildPath, process.env.NODE_ENV, build.publicPath, build.assetsBuildDirectory);
++  let server = process.env.HOST ? app.listen(port, process.env.HOST, onListen) : app.listen(port, onListen);
++  ["SIGTERM", "SIGINT"].forEach(signal => {
++    process.once(signal, () => server === null || server === void 0 ? void 0 : server.close(console.error));
++  });
++})();
+diff --git a/node_modules/@remix-run/serve/dist/index.js b/node_modules/@remix-run/serve/dist/index.js
+index fcef5ba..5af9e5d 100644
+--- a/node_modules/@remix-run/serve/dist/index.js
++++ b/node_modules/@remix-run/serve/dist/index.js
+@@ -12,6 +12,7 @@
+ 
+ Object.defineProperty(exports, '__esModule', { value: true });
+ 
++var { pathToFileURL } = require('url');
+ var express = require('express');
+ var compression = require('compression');
+ var morgan = require('morgan');
+@@ -35,12 +36,9 @@ function createApp(buildPath, mode = "production", publicPath = "/build/", asset
+     maxAge: "1h"
+   }));
+   app.use(morgan__default["default"]("tiny"));
+-  app.all("*", mode === "production" ? express$1.createRequestHandler({
+-    build: require(buildPath),
+-    mode
+-  }) : (req, res, next) => {
++  app.all("*", async (req, res, next) => {
+     // require cache is purged in @remix-run/dev where the file watcher is
+-    let build = require(buildPath);
++    let build = await getBuild(buildPath);
+     return express$1.createRequestHandler({
+       build,
+       mode
+@@ -49,4 +47,15 @@ function createApp(buildPath, mode = "production", publicPath = "/build/", asset
+   return app;
+ }
+ 
++async function getBuild(buildPath) {
++  try {
++    let buildModule = await import(pathToFileURL(buildPath).href);
++    return buildModule?.default || buildModule;
++  } catch (error) {
++    throw new Error(
++      `Error loading build at ${buildPath}\n${String(error)}`
++    );
++  }
++}
++
+ exports.createApp = createApp;
